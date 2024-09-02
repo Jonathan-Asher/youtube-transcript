@@ -102,7 +102,7 @@ export class YoutubeTranscript {
    * @param includeMetadata 
    * @returns {transcriptResponseArray: TranscriptResponse[], videoMetadata: IYoutubeVideoMetadata}
    */
-  public static async fetchTranscript( //legacy overload
+  public static async fetchTranscript( //new overload
     videoId: string,
     config?: TranscriptConfig,
     includeMetadata?: boolean
