@@ -54,6 +54,12 @@ export class YoutubeVideoMetadataNotFoundError extends YoutubeTranscriptError {
   }
 }
 
+export class YoutubeTranscriptEmptyError extends YoutubeTranscriptError {
+  constructor(videoId: string, transcriptBody: string) {
+    super(`Transcript response is empty for video (${videoId}). Response body: ${transcriptBody}`);
+  }
+}
+
 export interface TranscriptConfig {
   lang?: string;
   langs?: string[];
@@ -133,6 +139,7 @@ export class YoutubeTranscript {
 
     if (splittedHTML.length <= 1) {
       if (videoPageBody.includes('class="g-recaptcha"')) {
+        // TODO: add a captcha solver
         throw new YoutubeTranscriptTooManyRequestError();
       }
       if (!videoPageBody.includes('"playabilityStatus":')) {
@@ -193,19 +200,40 @@ export class YoutubeTranscript {
       throw new YoutubeTranscriptNotAvailableError(videoId);
     }
     const transcriptBody = await transcriptResponse.text();
+    
     const results = [...transcriptBody.matchAll(RE_XML_TRANSCRIPT)];
-    const finalResults = results.map((result) => ({
-      text: result[3],
-      duration: parseFloat(result[2]),
-      offset: parseFloat(result[1]),
-      lang: transcriptLanguage,
-    }));
+    
+      // TODO: When & why the results array is empty
+      const finalResults = results.map((result) => ({
+        text: result[3],
+        duration: parseFloat(result[2]),
+        offset: parseFloat(result[1]),
+        lang: transcriptLanguage,
+      }));
 
-    if (includeMetadata) {
-      const metaData: IYoutubeVideoMetadata = YoutubeTranscript.getVideoMetaData(videoPageBody);
-      return { transcriptResponseArray: finalResults, videoMetadata: metaData }
-    }
-    return finalResults as TranscriptResponse[];
+      if (finalResults.length === 0) {
+        const headers: Record<string, string> = {};
+        transcriptResponse.headers.forEach((value, key) => {
+          headers[key] = value;
+        });
+        
+        console.error('YouTube Transcript Debug Info:', {
+          videoId,
+          transcriptURL,
+          transcriptLanguage,
+          transcriptBody,
+          timestamp: new Date().toISOString(),
+          responseStatus: transcriptResponse.status,
+          responseHeaders: headers
+        });
+        throw new YoutubeTranscriptEmptyError(videoId, transcriptBody);
+      }
+
+      if (includeMetadata) {
+        const metaData: IYoutubeVideoMetadata = YoutubeTranscript.getVideoMetaData(videoPageBody);
+        return { transcriptResponseArray: finalResults, videoMetadata: metaData }
+      }
+      return finalResults as TranscriptResponse[];
   }
 
   /**

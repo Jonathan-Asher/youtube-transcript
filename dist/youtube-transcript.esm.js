@@ -63,6 +63,11 @@ class YoutubeVideoMetadataNotFoundError extends YoutubeTranscriptError {
         super(`Video metadata not found. ${message}` + (videoPage ? ` (Video page: ${videoPage})` : ``));
     }
 }
+class YoutubeTranscriptEmptyError extends YoutubeTranscriptError {
+    constructor(videoId, transcriptBody) {
+        super(`Transcript response is empty for video (${videoId}). Response body: ${transcriptBody}`);
+    }
+}
 /**
  * Class to retrieve transcript if exist
  */
@@ -81,6 +86,7 @@ class YoutubeTranscript {
             const splittedHTML = videoPageBody.split('"captions":');
             if (splittedHTML.length <= 1) {
                 if (videoPageBody.includes('class="g-recaptcha"')) {
+                    // TODO: add a captcha solver
                     throw new YoutubeTranscriptTooManyRequestError();
                 }
                 if (!videoPageBody.includes('"playabilityStatus":')) {
@@ -119,12 +125,29 @@ class YoutubeTranscript {
             }
             const transcriptBody = yield transcriptResponse.text();
             const results = [...transcriptBody.matchAll(RE_XML_TRANSCRIPT)];
+            // TODO: When & why the results array is empty
             const finalResults = results.map((result) => ({
                 text: result[3],
                 duration: parseFloat(result[2]),
                 offset: parseFloat(result[1]),
                 lang: transcriptLanguage,
             }));
+            if (finalResults.length === 0) {
+                const headers = {};
+                transcriptResponse.headers.forEach((value, key) => {
+                    headers[key] = value;
+                });
+                console.error('YouTube Transcript Debug Info:', {
+                    videoId,
+                    transcriptURL,
+                    transcriptLanguage,
+                    transcriptBody,
+                    timestamp: new Date().toISOString(),
+                    responseStatus: transcriptResponse.status,
+                    responseHeaders: headers
+                });
+                throw new YoutubeTranscriptEmptyError(videoId, transcriptBody);
+            }
             if (includeMetadata) {
                 const metaData = YoutubeTranscript.getVideoMetaData(videoPageBody);
                 return { transcriptResponseArray: finalResults, videoMetadata: metaData };
@@ -223,4 +246,4 @@ class YoutubeTranscript {
     }
 }
 
-export { YoutubeTranscript, YoutubeTranscriptDisabledError, YoutubeTranscriptError, YoutubeTranscriptNotAvailableError, YoutubeTranscriptNotAvailableLanguageError, YoutubeTranscriptTooManyRequestError, YoutubeTranscriptVideoUnavailableError, YoutubeVideoMetadataNotFoundError };
+export { YoutubeTranscript, YoutubeTranscriptDisabledError, YoutubeTranscriptEmptyError, YoutubeTranscriptError, YoutubeTranscriptNotAvailableError, YoutubeTranscriptNotAvailableLanguageError, YoutubeTranscriptTooManyRequestError, YoutubeTranscriptVideoUnavailableError, YoutubeVideoMetadataNotFoundError };

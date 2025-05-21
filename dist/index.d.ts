@@ -19,6 +19,9 @@ export declare class YoutubeTranscriptNotAvailableLanguageError extends YoutubeT
 export declare class YoutubeVideoMetadataNotFoundError extends YoutubeTranscriptError {
     constructor(videoPage?: string, message?: string);
 }
+export declare class YoutubeTranscriptEmptyError extends YoutubeTranscriptError {
+    constructor(videoId: string, transcriptBody: string);
+}
 export interface TranscriptConfig {
     lang?: string;
     langs?: string[];
@@ -63,7 +66,7 @@ export declare class YoutubeTranscript {
      * @param includeMetadata
      * @returns {transcriptResponseArray: TranscriptResponse[], videoMetadata: IYoutubeVideoMetadata}
      */
-    static fetchTranscript(//legacy overload
+    static fetchTranscript(//new overload
     videoId: string, config?: TranscriptConfig, includeMetadata?: boolean): Promise<{
         transcriptResponseArray: TranscriptResponse[];
         videoMetadata: IYoutubeVideoMetadata;
