@@ -47,6 +47,12 @@ export class YoutubeTranscriptNotAvailableLanguageError extends YoutubeTranscrip
   }
 }
 
+export class YoutubeTranscriptEmptyError extends YoutubeTranscriptError {
+  constructor(videoId: string, transcriptBody: string) {
+    super(`Transcript response is empty for video (${videoId}). Response body: ${transcriptBody}`);
+  }
+}
+
 export interface TranscriptConfig {
   lang?: string;
   langs?: string[];
@@ -92,6 +98,7 @@ export class YoutubeTranscript {
 
     if (splittedHTML.length <= 1) {
       if (videoPageBody.includes('class="g-recaptcha"')) {
+        // TODO: add a captcha solver
         throw new YoutubeTranscriptTooManyRequestError();
       }
       if (!videoPageBody.includes('"playabilityStatus":')) {
@@ -152,7 +159,27 @@ export class YoutubeTranscript {
       throw new YoutubeTranscriptNotAvailableError(videoId);
     }
     const transcriptBody = await transcriptResponse.text();
+    
     const results = [...transcriptBody.matchAll(RE_XML_TRANSCRIPT)];
+    
+    if (results.length === 0) {
+      const headers: Record<string, string> = {};
+      transcriptResponse.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+      
+      console.error('YouTube Transcript Debug Info:', {
+        videoId,
+        transcriptURL,
+        transcriptLanguage,
+        transcriptBody,
+        timestamp: new Date().toISOString(),
+        responseStatus: transcriptResponse.status,
+        responseHeaders: headers
+      });
+      throw new YoutubeTranscriptEmptyError(videoId, transcriptBody);
+    }
+  
     return results.map((result) => ({
       text: result[3],
       duration: parseFloat(result[2]),
